@@ -1,6 +1,11 @@
 # python-rtsp-client
 A rtsp client write in python
 
+![GitHub issues](https://img.shields.io/github/issues/Yadro-Intra/ssdp.svg)
+![GitHub forks](https://img.shields.io/github/forks/Yadro-Intra/ssdp.svg)
+![GitHub stars](https://img.shields.io/github/stars/Yadro-Intra/ssdp.svg)
+![GitHub license](https://img.shields.io/badge/license-Apache%202-blue.svg)
+
     Usage: rtsp-client.py [options] url
     
     In running, you can control play by input "forward","backward","begin","live","pause"
