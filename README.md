@@ -1,10 +1,9 @@
 # python-rtsp-client
 A rtsp client write in python
 
-![GitHub issues](https://img.shields.io/github/issues/Yadro-Intra/ssdp.svg)
-![GitHub forks](https://img.shields.io/github/forks/Yadro-Intra/ssdp.svg)
-![GitHub stars](https://img.shields.io/github/stars/Yadro-Intra/ssdp.svg)
-![GitHub license](https://img.shields.io/badge/license-Apache%202-blue.svg)
+![GitHub issues](https://img.shields.io/github/issues/Yadro-Intra/python-rtsp-client.svg)
+![GitHub forks](https://img.shields.io/github/forks/Yadro-Intra/python-rtsp-client.svg)
+![GitHub stars](https://img.shields.io/github/stars/Yadro-Intra/python-rtsp-client.svg)
 
     Usage: rtsp-client.py [options] url
     
