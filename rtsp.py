@@ -6,11 +6,13 @@
 # Some text google-translated from Chinese
 # A bit adopted to be import'able
 # -jno
+#
+#Ported to Python3, removed GoodThread
+# -killian441
 
-import sys, re, socket, time, datetime, traceback
-import exceptions, urlparse
+import sys, re, socket, threading, time, datetime, traceback
+import urllib.parse 
 from optparse import OptionParser
-import util
 
 DEFAULT_SERVER_PORT = 554
 TRANSPORT_TYPE_LIST = []
@@ -44,7 +46,7 @@ X_NOTICE_EOS, X_NOTICE_BOS, X_NOTICE_CLOSE = 2101, 2102, 2103
 # Colored Output in Console
 #--------------------------------------------------------------------------
 DEBUG = False
-BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA,CYAN,WHITE = range(90, 98)
+BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA,CYAN,WHITE = list(range(90, 98))
 def COLOR_STR(msg, color=WHITE):
     return '\033[%dm%s\033[0m'%(color, msg)
 
@@ -53,20 +55,21 @@ def PRINT(msg, color=WHITE, out=sys.stdout):
         out.write(COLOR_STR(msg, color) + '\n')
 #--------------------------------------------------------------------------
 
-class RTSPError(exceptions.Exception): pass
+class RTSPError(Exception): pass
 class RTSPURLError(RTSPError): pass
 class RTSPNetError(RTSPError): pass
 
-class RTSPClient(util.GoodThread):
+class RTSPClient(threading.Thread):
     def __init__(self, url, dest_ip=''):
         global CUR_RANGE
-        util.GoodThread.__init__(self)
+        threading.Thread.__init__(self)
         self._sock      = None
         self._orig_url  = url
         self._cseq      = 0
         self._session_id= ''
         self._cseq_map  = {} # {CSeq:Method} mapping
         self._dest_ip   = dest_ip
+        self.running    = True
         self.playing    = False
         self.location   = ''
         self.response_buf = []
@@ -103,25 +106,26 @@ class RTSPClient(util.GoodThread):
     def close(self):
         if not self.closed:
             self.closed = True
-            self.stop()
+            self.running = False
             self.playing = False
             self._sock.close()
 
     def run(self):
         try:
-            while not self.stopped():
+            while self.running:
                 self.response = msg = self.recv_msg()
                 if msg.startswith('RTSP'):
                     self._process_response(msg)
                 elif msg.startswith('ANNOUNCE'):
                     self._process_announce(msg)
-        except Exception, e:
+        except Exception as e:
             raise RTSPError('Run time error: %s' % e)
+        self.running = False
         self.close()
 
     def _parse_url(self, url):
         '''Resolve url, return (ip, port, target) triplet'''
-        parsed = urlparse.urlparse(url)
+        parsed = urllib.parse.urlparse(url)
         scheme = parsed.scheme.lower()
         ip = parsed.hostname
         port = parsed.port and int(parsed.port) or DEFAULT_SERVER_PORT
@@ -146,7 +150,7 @@ class RTSPClient(util.GoodThread):
         try:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._sock.connect((self._server_ip, self._server_port))
-        except socket.error, e:
+        except socket.error as e:
             raise RTSPNetError('socket error: %s [%s:%d]' % (e, self._server_ip, self._server_port))
 
     def _update_dest_ip(self):
@@ -158,12 +162,12 @@ class RTSPClient(util.GoodThread):
     def recv_msg(self):
         '''A complete response message or an ANNOUNCE notification message is received'''
         try:
-            while not (self.stopped() or HEADER_END_STR in self.cache()):
+            while not (not self.running or HEADER_END_STR in self.cache()):
                 more = self._sock.recv(2048)
                 if not more:
                     break
-                self.cache(more)
-        except socket.error, e:
+                self.cache(more.decode())
+        except socket.error as e:
             RTSPNetError('Receive data error: %s' % e)
 
         msg = ''
@@ -256,14 +260,14 @@ class RTSPClient(util.GoodThread):
         headers['CSeq'] = str(cseq)
         if self._session_id:
             headers['Session'] = self._session_id
-        for (k, v) in headers.items():
+        for (k, v) in list(headers.items()):
             msg += END_OF_LINE + '%s: %s'%(k, str(v))
         msg += HEADER_END_STR # End headers
         if method != 'GET_PARAMETER' or 'x-RetransSeq' in headers:
             PRINT(self._get_time_str() + END_OF_LINE + msg)
         try:
-            self._sock.send(msg)
-        except socket.error, e:
+            self._sock.send(msg.encode())
+        except socket.error as e:
             PRINT('Send msg error: %s'%e, RED)
             raise RTSPNetError(e)
 
@@ -306,7 +310,7 @@ class RTSPClient(util.GoodThread):
 
     def do_teardown(self):
         self._sendmsg('TEARDOWN', self._orig_url, {})
-        self.stop()
+        self.running = False
 
     def do_options(self):
         self._sendmsg('OPTIONS', self._orig_url, {})
@@ -316,7 +320,7 @@ class RTSPClient(util.GoodThread):
 
     def send_heart_beat_msg(self):
         '''Timed sending GET_PARAMETER message keep alive'''
-        if not self.stopped():
+        if not self.running:
             self.do_get_parameter()
             threading.Timer(HEARTBEAT_INTERVAL, self.send_heart_beat_msg).start()
 
@@ -353,7 +357,7 @@ def input_cmd():
     readline.set_completer_delims(' \t\n')
     readline.parse_and_bind("tab: complete")
     readline.set_completer(complete)
-    cmd = raw_input(COLOR_STR('Input Command # ', CYAN))
+    cmd = input(COLOR_STR('Input Command # ', CYAN))
     PRINT('') # add one line
     return cmd
 #-----------------------------------------------------------------------
@@ -399,18 +403,18 @@ def main(url, dest_ip):
 
     try:
         rtsp.do_describe()
-        while rtsp.location and not rtsp.stopped():
+        while rtsp.location and rtsp.running:
             if rtsp.playing:
                 cmd = input_cmd()
                 exec_cmd(rtsp, cmd)
             # 302 redirect to re-establish chain
-            if rtsp.stopped() and rtsp.location:
+            if not rtsp.running and rtsp.location:
                 rtsp = RTSPClient(rtsp.location)
                 rtsp.do_describe()
             time.sleep(0.5)
     except KeyboardInterrupt:
         rtsp.do_teardown()
-        print '\n^C received, Exit.'
+        print('\n^C received, Exit.')
 
 def play_ctrl_help():
     help = COLOR_STR('In running, you can control play by input "' \
