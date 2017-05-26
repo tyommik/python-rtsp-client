@@ -10,7 +10,7 @@
 #Ported to Python3, removed GoodThread
 # -killian441
 
-import sys, re, socket, threading, time, datetime, traceback
+import ast, datetime, re, socket, sys, threading, time, traceback
 from optparse import OptionParser
 try:
     from urllib.parse import urlparse
@@ -81,8 +81,10 @@ class RTSPClient(threading.Thread):
         self.location   = ''
         self.response_buf = []
         self.response   = None
-        self._scheme, self._server_ip, self._server_port, self._target = self._parse_url(url)
-        if '.sdp' not in self._target.lower():
+        #self._scheme, self._server_ip, self._server_port, self._target = self._parse_url(url)
+        self._parsed_url = self._parse_url(url)
+        self._server_port = self._parsed_url.port or DEFAULT_SERVER_PORT
+        if '.sdp' not in self._parsed_url.path.lower():
             CUR_RANGE = 'npt=0.00000-' # On demand starts from the beginning
         self._connect_server()
         self._update_dest_ip()
@@ -149,16 +151,16 @@ class RTSPClient(threading.Thread):
         if not ip or not target:
             raise RTSPURLError('Invalid url: %s (host="%s" port=%u target="%s")' %
                             (url, ip, port, target))
-
-        return scheme, ip, port, target
+        #return scheme, ip, port, target
+        return parsed
 
     def _connect_server(self):
         '''Connect to the server and create a socket'''
         try:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._sock.connect((self._server_ip, self._server_port))
+            self._sock.connect((self._parsed_url.hostname, self._server_port))
         except socket.error as e:
-            raise RTSPNetError('socket error: %s [%s:%d]' % (e, self._server_ip, self._server_port))
+            raise RTSPNetError('socket error: %s [%s:%d]' % (e, self._parsed_url.hostname, self._server_port))
 
     def _update_dest_ip(self):
         '''If DEST_IP is not specified, the same IP is used by default with RTSP'''
@@ -180,13 +182,56 @@ class RTSPClient(threading.Thread):
         msg = ''
         if self.cache():
             tmp = self.cache()
-
             (msg, tmp) = tmp.split(HEADER_END_STR, 1)
             content_length = self._get_content_length(msg)
             msg += HEADER_END_STR + tmp[:content_length]
-
             self.set_cache(tmp[content_length:])
         return msg
+
+    def _add_auth(self, msg):
+        '''Authentication request string, everything after www-authentication'''
+        #TODO: this is too simplistic and will fail if more than one method is acceptable, among other issues
+        if msg.lower().startswith('basic'):
+            pass
+        elif msg.lower().startswith('digest '):
+            mod_msg = '{'+msg[7:].replace('=',':')+'}'
+            mod_msg = mod_msg.replace('realm','"realm"')
+            mod_msg = mod_msg.replace('nonce','"nonce"')
+            msg_dict = ast.literal_eval(mod_msg)
+            response = self._auth_digest(msg_dict)
+            auth_string = 'Digest ' \
+                          'username="{}", ' \
+                          'algorithm="MD5", ' \
+                          'realm="{}", ' \
+                          'nonce="{}", ' \
+                          'uri="{}", ' \
+                          'response="{}"'.format(
+                          self._parsed_url.username,
+                          msg_dict['realm'],
+                          msg_dict['nonce'],
+                          self._parsed_url.path,
+                          response)
+            return auth_string
+        else: # Some other failure
+            PRINT('Authentication failure')
+            self.do_teardown()
+
+    def _auth_digest(self, auth_parameters):
+        '''Creates a response string for digest authorization, only works with MD5 at the moment'''
+        #TODO expand to more than MD5
+        if self._parsed_url.username:
+            HA1 = md5("{}:{}:{}".format(self._parsed_url.username,
+                                        auth_parameters['realm'],
+                                        self._parsed_url.password).encode()).hexdigest()
+            HA2 = md5("{}:{}".format(self._cseq_map[self._cseq],
+                                     self._parsed_url.path).encode()).hexdigest()
+            response = md5("{}:{}:{}".format(HA1,
+                                             auth_parameters['nonce'],
+                                             HA2).encode()).hexdigest()
+            return response
+        else:
+            PRINT('Authentication failure')
+            self.do_teardown()
 
     def _get_content_length(self, msg):
         '''Content-length is parsed from the message'''
@@ -206,8 +251,10 @@ class RTSPClient(threading.Thread):
         if self._cseq_map[rsp_cseq] != 'GET_PARAMETER':
             PRINT(self._get_time_str() + '\n' + msg)
         if status == 401:
-            #self._add_auth(headers['www-authenticate'])
-            self.do_teardown()
+            auth_string = self._add_auth(headers['www-authenticate'])
+            if self._cseq_map[self._cseq] == 'DESCRIBE':
+                self.do_describe({'Authorization':auth_string})
+            #self.do_teardown()
         elif status == 302:
             self.location = headers['location']
         elif status != 200:
@@ -303,11 +350,11 @@ class RTSPClient(threading.Thread):
         if NAT_IP_PORT: headers['x-NAT'] = NAT_IP_PORT
         self._sendmsg('DESCRIBE', self._orig_url, headers)
 
-    def do_setup(self, headers={}, track_id_str=''):
+    def do_setup(self, track_id_str='', headers={}):
         headers['Transport'] = self._get_transport_type()
         self._sendmsg('SETUP', self._orig_url+'/'+track_id_str, headers)
 
-    def do_play(self, headers={}, range='npt=end-', scale=1):
+    def do_play(self, range='npt=end-', scale=1, headers={}):
         headers['Range'] = range
         headers['Scale'] = scale
         self._sendmsg('PLAY', self._orig_url, headers)
