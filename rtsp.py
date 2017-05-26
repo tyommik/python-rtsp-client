@@ -202,7 +202,6 @@ class RTSPClient(threading.Thread):
     def _process_response(self, msg):
         '''Process the response message'''
         status, headers, body = self._parse_response(msg)
-        print(status,headers)
         rsp_cseq = int(headers['cseq'])
         if self._cseq_map[rsp_cseq] != 'GET_PARAMETER':
             PRINT(self._get_time_str() + '\n' + msg)
@@ -295,8 +294,7 @@ class RTSPClient(threading.Thread):
                 transport_str += TRANSPORT_TYPE_MAP[t]%(ip_type, self._dest_ip, CLIENT_PORT_RANGE)
         return transport_str
 
-    def do_describe(self):
-        headers = {}
+    def do_describe(self, headers={}):
         headers['Accept'] = 'application/sdp'
         if ENABLE_ARQ:
             headers['x-Retrans'] = 'yes'
@@ -305,29 +303,27 @@ class RTSPClient(threading.Thread):
         if NAT_IP_PORT: headers['x-NAT'] = NAT_IP_PORT
         self._sendmsg('DESCRIBE', self._orig_url, headers)
 
-    def do_setup(self, track_id_str=''):
-        headers = {}
+    def do_setup(self, headers={}, track_id_str=''):
         headers['Transport'] = self._get_transport_type()
         self._sendmsg('SETUP', self._orig_url+'/'+track_id_str, headers)
 
-    def do_play(self, range='npt=end-', scale=1):
-        headers = {}
+    def do_play(self, headers={}, range='npt=end-', scale=1):
         headers['Range'] = range
         headers['Scale'] = scale
         self._sendmsg('PLAY', self._orig_url, headers)
 
-    def do_pause(self):
-        self._sendmsg('PAUSE', self._orig_url, {})
+    def do_pause(self, headers={}):
+        self._sendmsg('PAUSE', self._orig_url, headers)
 
-    def do_teardown(self):
-        self._sendmsg('TEARDOWN', self._orig_url, {})
+    def do_teardown(self, headers={}):
+        self._sendmsg('TEARDOWN', self._orig_url, headers)
         self.running = False
 
-    def do_options(self):
-        self._sendmsg('OPTIONS', self._orig_url, {})
+    def do_options(self, headers={}):
+        self._sendmsg('OPTIONS', self._orig_url, headers)
 
-    def do_get_parameter(self):
-        self._sendmsg('GET_PARAMETER', self._orig_url, {})
+    def do_get_parameter(self, headers={}):
+        self._sendmsg('GET_PARAMETER', self._orig_url, headers)
 
     def send_heart_beat_msg(self):
         '''Timed sending GET_PARAMETER message keep alive'''
