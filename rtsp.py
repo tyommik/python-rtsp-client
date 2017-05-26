@@ -11,8 +11,15 @@
 # -killian441
 
 import sys, re, socket, threading, time, datetime, traceback
-import urllib.parse 
 from optparse import OptionParser
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse # for python < 3.0
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import md5 # for python < 2.5
 
 DEFAULT_SERVER_PORT = 554
 TRANSPORT_TYPE_LIST = []
@@ -125,7 +132,7 @@ class RTSPClient(threading.Thread):
 
     def _parse_url(self, url):
         '''Resolve url, return (ip, port, target) triplet'''
-        parsed = urllib.parse.urlparse(url)
+        parsed = urlparse(url)
         scheme = parsed.scheme.lower()
         ip = parsed.hostname
         port = parsed.port and int(parsed.port) or DEFAULT_SERVER_PORT
@@ -195,14 +202,18 @@ class RTSPClient(threading.Thread):
     def _process_response(self, msg):
         '''Process the response message'''
         status, headers, body = self._parse_response(msg)
+        print(status,headers)
         rsp_cseq = int(headers['cseq'])
         if self._cseq_map[rsp_cseq] != 'GET_PARAMETER':
             PRINT(self._get_time_str() + '\n' + msg)
-        if status == 302:
-            self.location = headers['location']
-        if status != 200:
+        if status == 401:
+            #self._add_auth(headers['www-authenticate'])
             self.do_teardown()
-        if self._cseq_map[rsp_cseq] == 'DESCRIBE':
+        elif status == 302:
+            self.location = headers['location']
+        elif status != 200:
+            self.do_teardown()
+        elif self._cseq_map[rsp_cseq] == 'DESCRIBE': #Implies status 200
             track_id_str = self._parse_track_id(body)
             self.do_setup(track_id_str)
         elif self._cseq_map[rsp_cseq] == 'SETUP':
