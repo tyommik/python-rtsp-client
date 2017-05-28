@@ -236,7 +236,7 @@ class RTSPClient(threading.Thread):
 
     def _get_content_length(self, msg):
         '''Content-length is parsed from the message'''
-        m = re.search(r'[Cc]ontent-length:\s?(?P<len>\d+)', msg, re.S)
+        m = re.search(r'content-length:\s?(?P<len>\d+)', msg.lower(), re.S)
         return (m and int(m.group('len'))) or 0
 
     def _get_time_str(self):
@@ -487,7 +487,7 @@ def main(url, dest_ip):
 
     try:
         rtsp.do_describe()
-        while rtsp.location and rtsp.running:
+        while rtsp.running:
             if rtsp.playing:
                 cmd = input_cmd()
                 exec_cmd(rtsp, cmd)
