@@ -70,6 +70,7 @@ class RTSPClient(threading.Thread):
     def __init__(self, url, dest_ip=''):
         global CUR_RANGE
         threading.Thread.__init__(self)
+        self._auth      = None
         self._sock      = None
         self._orig_url  = url
         self._cseq      = 0
@@ -211,7 +212,7 @@ class RTSPClient(threading.Thread):
                           msg_dict['nonce'],
                           self._parsed_url.path,
                           response)
-            return auth_string
+            self._auth = auth_string
         else: # Some other failure
             PRINT('Authentication failure')
             self.do_teardown()
@@ -251,9 +252,8 @@ class RTSPClient(threading.Thread):
         if self._cseq_map[rsp_cseq] != 'GET_PARAMETER':
             PRINT(self._get_time_str() + '\n' + msg)
         if status == 401:
-            auth_string = self._add_auth(headers['www-authenticate'])
-            if self._cseq_map[self._cseq] == 'DESCRIBE':
-                self.do_describe({'Authorization':auth_string})
+            self._add_auth(headers['www-authenticate'])
+            self.do_replay_request()
             #self.do_teardown()
         elif status == 302:
             self.location = headers['location']
@@ -342,6 +342,8 @@ class RTSPClient(threading.Thread):
         return transport_str
 
     def do_describe(self, headers={}):
+        if self._auth:
+            headers['Authorization'] = self._auth
         headers['Accept'] = 'application/sdp'
         if ENABLE_ARQ:
             headers['x-Retrans'] = 'yes'
@@ -351,26 +353,54 @@ class RTSPClient(threading.Thread):
         self._sendmsg('DESCRIBE', self._orig_url, headers)
 
     def do_setup(self, track_id_str='', headers={}):
+        if self._auth:
+            headers['Authorization'] = self._auth
         headers['Transport'] = self._get_transport_type()
         self._sendmsg('SETUP', self._orig_url+'/'+track_id_str, headers)
 
     def do_play(self, range='npt=end-', scale=1, headers={}):
+        if self._auth:
+            headers['Authorization'] = self._auth
         headers['Range'] = range
         headers['Scale'] = scale
         self._sendmsg('PLAY', self._orig_url, headers)
 
     def do_pause(self, headers={}):
+        if self._auth:
+            headers['Authorization'] = self._auth
         self._sendmsg('PAUSE', self._orig_url, headers)
 
     def do_teardown(self, headers={}):
+        if self._auth:
+            headers['Authorization'] = self._auth
         self._sendmsg('TEARDOWN', self._orig_url, headers)
         self.running = False
 
     def do_options(self, headers={}):
+        if self._auth:
+            headers['Authorization'] = self._auth
         self._sendmsg('OPTIONS', self._orig_url, headers)
 
     def do_get_parameter(self, headers={}):
+        if self._auth:
+            headers['Authorization'] = self._auth
         self._sendmsg('GET_PARAMETER', self._orig_url, headers)
+
+    def do_replay_request(self, headers={}):
+        if self._cseq_map[self._cseq] == 'DESCRIBE':
+            self.do_describe()
+        elif self._cseq_map[self._cseq] == 'SETUP':
+            self.do_setup()
+        elif self._cseq_map[self._cseq] == 'PLAY':
+            self.do_play()
+        elif self._cseq_map[self._cseq] == 'PAUSE':
+            self.do_pause()
+        elif self._cseq_map[self._cseq] == 'TEARDOWN':
+            self.do_teardown()
+        elif self._cseq_map[self._cseq] == 'OPTIONS':
+            self.do_options()
+        elif self._cseq_map[self._cseq] == 'GET_PARAMETER':
+            self.do_get_parameter()
 
     def send_heart_beat_msg(self):
         '''Timed sending GET_PARAMETER message keep alive'''
