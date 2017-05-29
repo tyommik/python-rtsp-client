@@ -11,15 +11,12 @@
 # -killian441
 
 import ast, datetime, re, socket, sys, threading, time, traceback
+from hashlib import md5
 from optparse import OptionParser
 try:
     from urllib.parse import urlparse
 except ImportError:
     from urlparse import urlparse # for python < 3.0
-try:
-    from hashlib import md5
-except ImportError:
-    from md5 import md5 # for python < 2.5
 
 DEFAULT_SERVER_PORT = 554
 TRANSPORT_TYPE_LIST = []
@@ -214,8 +211,8 @@ class RTSPClient(threading.Thread):
                           response)
             self._auth = auth_string
         else: # Some other failure
-            PRINT('Authentication failure')
             self.do_teardown()
+            raise RTSPError('Authentication failure')
 
     def _auth_digest(self, auth_parameters):
         '''Creates a response string for digest authorization, only works with MD5 at the moment'''
@@ -231,8 +228,8 @@ class RTSPClient(threading.Thread):
                                              HA2).encode()).hexdigest()
             return response
         else:
-            PRINT('Authentication failure')
             self.do_teardown()
+            raise RTSPError('Authentication required, no username provided')
 
     def _get_content_length(self, msg):
         '''Content-length is parsed from the message'''
@@ -251,7 +248,7 @@ class RTSPClient(threading.Thread):
         rsp_cseq = int(headers['cseq'])
         if self._cseq_map[rsp_cseq] != 'GET_PARAMETER':
             PRINT(self._get_time_str() + '\n' + msg)
-        if status == 401:
+        if status == 401 and not self._auth:
             self._add_auth(headers['www-authenticate'])
             self.do_replay_request()
             #self.do_teardown()
