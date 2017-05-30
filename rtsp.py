@@ -67,21 +67,24 @@ class RTSPClient(threading.Thread):
     def __init__(self, url, dest_ip=''):
         global CUR_RANGE
         threading.Thread.__init__(self)
-        self._auth      = None
-        self._sock      = None
-        self._orig_url  = url
-        self._cseq      = 0
-        self._session_id= ''
-        self._cseq_map  = {} # {CSeq:Method} mapping
-        self._dest_ip   = dest_ip
-        self.running    = True
-        self.playing    = False
-        self.location   = ''
+        self._auth        = None
+        self._sock        = None
+        self._cseq        = 0
+        self._session_id  = ''
+        self._cseq_map    = {} # {CSeq:Method} mapping
+        self._dest_ip     = dest_ip
+        self.running      = True
+        self.playing      = False
+        self.location     = ''
         self.response_buf = []
-        self.response   = None
+        self.response     = None
         #self._scheme, self._server_ip, self._server_port, self._target = self._parse_url(url)
-        self._parsed_url = self._parse_url(url)
+        self._parsed_url  = self._parse_url(url)
         self._server_port = self._parsed_url.port or DEFAULT_SERVER_PORT
+        self._orig_url    = self._parsed_url.scheme + "://" + \
+                            self._parsed_url.hostname + \
+                            ":" + str(self._server_port) + \
+                            self._parsed_url.path
         if '.sdp' not in self._parsed_url.path.lower():
             CUR_RANGE = 'npt=0.00000-' # On demand starts from the beginning
         self._connect_server()
