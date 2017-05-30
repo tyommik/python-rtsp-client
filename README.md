@@ -1,11 +1,23 @@
-# python-rtsp-client
+python-rtsp-client
+==================
+
 A basic rtsp client writen in pure python
 
-![GitHub issues](https://img.shields.io/github/issues/Yadro-Intra/python-rtsp-client.svg)
-![GitHub forks](https://img.shields.io/github/forks/Yadro-Intra/python-rtsp-client.svg)
-![GitHub stars](https://img.shields.io/github/stars/Yadro-Intra/python-rtsp-client.svg)
+Getting Started
+---------------
 
-Usage: rtsp.py [options] url
+::
+    from rtsp import RTSPClient
+    myrtsp = RTSPClient(url='rtsp://username:password@hostname:port/path',callback=print)
+    try:
+        myrtsp.do_describe()
+    except:
+        myrtsp.do_teardown()
+
+
+Examples
+--------
+Usage: setupandplay.py [options] url
     
     While running, you can control play by inputting "forward","backward","begin","live","pause"
     or "play" a with "range" and "scale" parameter, such as "play range:npt=beginning- scale:2"
