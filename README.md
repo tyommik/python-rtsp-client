@@ -6,11 +6,11 @@ A basic rtsp client writen in pure python
 Getting Started
 ---------------
 
-::
     from rtsp import RTSPClient
     myrtsp = RTSPClient(url='rtsp://username:password@hostname:port/path',callback=print)
     try:
         myrtsp.do_describe()
+        #Open socket to capture frames here
     except:
         myrtsp.do_teardown()
 
