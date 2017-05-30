@@ -117,7 +117,7 @@ class RTSPClient(threading.Thread):
         self.close()
 
     def _parse_url(self, url):
-        '''Resolve url, return (ip, port, target) triplet'''
+        '''Resolve url, return the urlparse object'''
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
         ip = parsed.hostname
@@ -137,7 +137,6 @@ class RTSPClient(threading.Thread):
             raise RTSPURLError('Invalid url: %s (host="%s" \
                                 port=%u target="%s")' %
                                 (url, ip, port, target))
-        #return scheme, ip, port, target
         return parsed
 
     def _connect_server(self):
@@ -151,7 +150,7 @@ class RTSPClient(threading.Thread):
 
     def _update_dest_ip(self):
         '''If DEST_IP is not specified, 
-           the same IP is used by default with RTSP'''
+           by default the same IP is used as this RTSP client'''
         if not self._dest_ip:
             self._dest_ip = self._sock.getsockname()[0]
             self._callback('DEST_IP: %s\n' % self._dest_ip)
@@ -178,8 +177,8 @@ class RTSPClient(threading.Thread):
         return msg
 
     def _add_auth(self, msg):
-        '''Authentication request string, 
-           everything after www-authentication'''
+        '''Authentication request string 
+           (i.e. everything after "www-authentication")'''
         #TODO: this is too simplistic and will fail if more than one method
         #       is acceptable, among other issues
         if msg.lower().startswith('basic'):
@@ -209,7 +208,7 @@ class RTSPClient(threading.Thread):
 
     def _auth_digest(self, auth_parameters):
         '''Creates a response string for digest authorization, only works
-           with MD5 at the moment'''
+           with the MD5 algorithm at the moment'''
         #TODO expand to more than MD5
         if self._parsed_url.username:
             HA1 = md5("{}:{}:{}".format(self._parsed_url.username,
@@ -233,8 +232,8 @@ class RTSPClient(threading.Thread):
         return (m and int(m.group('len'))) or 0
 
     def _get_time_str(self):
-        # python 2.6 above only support% f parameters,
-        # compatible with the lower version of the following wording
+        '''Python 2.6 and above only supports %f parameters,
+           compatible with the lower version with the following wording'''
         dt = datetime.datetime.now()
         return dt.strftime('%Y-%m-%d %H:%M:%S.') + str(dt.microsecond)
 
@@ -499,7 +498,7 @@ def main(url, options):
 
     if options.ping:
         PRINT('PING START', YELLOW)
-        rtsp.ping()
+        rtsp.ping(0.1)
         PRINT('PING DONE', YELLOW)
         sys.exit(0)
         return
@@ -534,23 +533,24 @@ if __name__ == '__main__':
     parser = OptionParser(usage=usage)
     parser.add_option('-t', '--transport', dest='transport', 
                       default='rtp_over_udp',
-                      help='Set transport type when SETUP: ts_over_tcp, '
-                          +'ts_over_udp, rtp_over_tcp, rtp_over_udp[default]')
+                      help='Set transport type when issuing SETUP: '
+                          +'ts_over_tcp, ts_over_udp, rtp_over_tcp, '
+                          +'rtp_over_udp[default]')
     parser.add_option('-d', '--dest_ip', dest='dest_ip',
-                      help='Set dest ip of udp data transmission, default '
-                          +'use same ip with rtsp')
+                      help='Set destination ip of udp data transmission, '
+                          +'default uses same ip as this rtsp client')
     parser.add_option('-p', '--client_port', dest='client_port',
-                      help='Set client port range when SETUP of udp, default '
-                          +'is "10014-10015"')
+                      help='Set client port range when issuing SETUP of udp, '
+                          +'default is "10014-10015"')
     parser.add_option('-n', '--nat', dest='nat',
-                      help='Add "x-NAT" when DESCRIBE, arg format '
+                      help='Add "x-NAT" when issuing DESCRIBE, arg format '
                           +'"192.168.1.100:20008"')
     parser.add_option('-r', '--arq', dest='arq', action="store_true",
-                      help='Add "x-Retrans:yes" when DESCRIBE')
+                      help='Add "x-Retrans:yes" when issuing DESCRIBE')
     parser.add_option('-f', '--fec', dest='fec', action="store_true",
-                      help='Add "x-zmssFecCDN:yes" when DESCRIBE')
+                      help='Add "x-zmssFecCDN:yes" when issuing DESCRIBE')
     parser.add_option('-P', '--ping', dest='ping', action="store_true",
-                      help='Just perform DESCRIBE and exit.')
+                      help='Just issue OPTIONS and exit.')
 
     (options, args) = parser.parse_args()
     if len(args) < 1:
