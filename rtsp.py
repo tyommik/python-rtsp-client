@@ -34,24 +34,19 @@ HEADER_END_STR      = END_OF_LINE*2
 #x-notice in ANNOUNCE, BOS-Begin of Stream, EOS-End of Stream
 X_NOTICE_EOS, X_NOTICE_BOS, X_NOTICE_CLOSE = 2101, 2102, 2103
 
-#### Variables ####
-CUR_RANGE           = 'npt=end-'
-CUR_SCALE           = 1
-TRANSPORT_TYPE_LIST = []
-NAT_IP_PORT         = ''
-ENABLE_ARQ          = False
-ENABLE_FEC          = False
-PING                = False
-HEARTBEAT_INTERVAL  = 10 # 10s
-CLIENT_PORT_RANGE   = '10014-10015'
-
 class RTSPError(Exception): pass
 class RTSPURLError(RTSPError): pass
 class RTSPNetError(RTSPError): pass
 
 class RTSPClient(threading.Thread):
+    TRANSPORT_TYPE_LIST = []
+    NAT_IP_PORT         = ''
+    ENABLE_ARQ          = False
+    ENABLE_FEC          = False
+    HEARTBEAT_INTERVAL  = 10 # 10s
+    CLIENT_PORT_RANGE   = '10014-10015'
+
     def __init__(self, url, dest_ip='', callback=None):
-        global CUR_RANGE
         threading.Thread.__init__(self)
         self._auth        = None
         self._callback    = callback or (lambda x: x)
@@ -66,13 +61,15 @@ class RTSPClient(threading.Thread):
                             self._parsed_url.path
         self._session_id  = ''
         self._sock        = None
+        self.cur_range    = 'npt=end-'
+        self.cur_scale    = 1
         self.location     = ''
         self.playing      = False
         self.response     = None
         self.response_buf = []
         self.running      = True
         if '.sdp' not in self._parsed_url.path.lower():
-            CUR_RANGE = 'npt=0.00000-' # On demand starts from the beginning
+            self.cur_range = 'npt=0.00000-' # On demand starts from the beginning
         self._connect_server()
         self._update_dest_ip()
         self.closed = False
@@ -259,20 +256,19 @@ class RTSPClient(threading.Thread):
             self.do_setup(track_id_str)
         elif self._cseq_map[rsp_cseq] == 'SETUP':
             self._session_id = headers['session']
-            self.do_play(CUR_RANGE, CUR_SCALE)
+            self.do_play(self.cur_range, self.cur_scale)
             self.send_heart_beat_msg()
         elif self._cseq_map[rsp_cseq] == 'PLAY':
             self.playing = True
 
     def _process_announce(self, msg):
         '''Processes the ANNOUNCE notification message'''
-        global CUR_RANGE, CUR_SCALE
         self._callback(msg)
         headers = self._parse_header_params(msg.splitlines()[1:])
         x_notice_val = int(headers['x-notice'])
         if x_notice_val in (X_NOTICE_EOS, X_NOTICE_BOS):
-            CUR_SCALE = 1
-            self.do_play(CUR_RANGE, CUR_SCALE)
+            self.cur_scale = 1
+            self.do_play(self.cur_range, self.cur_scale)
         elif x_notice_val == X_NOTICE_CLOSE:
             self.do_teardown()
 
@@ -328,26 +324,28 @@ class RTSPClient(threading.Thread):
         transport_str = ''
         ip_type = 'unicast' #TODO: if IPAddress(DEST_IP).is_unicast() 
                             #      else 'multicast'
-        for t in TRANSPORT_TYPE_LIST:
+        for t in self.TRANSPORT_TYPE_LIST:
             if t not in TRANSPORT_TYPE_MAP:
                 raise RTSPError('Error param: %s' % t)
             if t.endswith('tcp'):
-                transport_str += TRANSPORT_TYPE_MAP[t]%ip_type
+                transport_str +=TRANSPORT_TYPE_MAP[t]%ip_type
             else:
-                transport_str += TRANSPORT_TYPE_MAP[t]%(ip_type, 
-                                                        self._dest_ip, 
-                                                        CLIENT_PORT_RANGE)
+                transport_str +=TRANSPORT_TYPE_MAP[t]%(ip_type, 
+                                                       self._dest_ip, 
+                                                       self.CLIENT_PORT_RANGE)
         return transport_str
 
     def do_describe(self, headers={}):
         if self._auth:
             headers['Authorization'] = self._auth
         headers['Accept'] = 'application/sdp'
-        if ENABLE_ARQ:
+        if self.ENABLE_ARQ:
             headers['x-Retrans'] = 'yes'
             headers['x-Burst'] = 'yes'
-        if ENABLE_FEC: headers['x-zmssFecCDN'] = 'yes'
-        if NAT_IP_PORT: headers['x-NAT'] = NAT_IP_PORT
+        if self.ENABLE_FEC: 
+            headers['x-zmssFecCDN'] = 'yes'
+        if self.NAT_IP_PORT: 
+            headers['x-NAT'] = self.NAT_IP_PORT
         self._sendmsg('DESCRIBE', self._orig_url, headers)
 
     def do_setup(self, track_id_str='', headers={}):
@@ -404,7 +402,7 @@ class RTSPClient(threading.Thread):
         '''Timed sending GET_PARAMETER message keep alive'''
         if not self.running:
             self.do_get_parameter()
-            threading.Timer(HEARTBEAT_INTERVAL, 
+            threading.Timer(self.HEARTBEAT_INTERVAL, 
                             self.send_heart_beat_msg).start()
 
     def ping(self, timeout=0.01):
@@ -464,35 +462,40 @@ def PRINT(msg, color=WHITE, out=sys.stdout):
 
 def exec_cmd(rtsp, cmd):
     '''Execute the operation according to the command'''
-    global CUR_RANGE, CUR_SCALE
     if cmd in ('exit', 'teardown'):
         rtsp.do_teardown()
     elif cmd == 'pause':
-        CUR_SCALE = 1; CUR_RANGE = 'npt=now-'
+        rtsp.cur_scale = 1; rtsp.cur_range = 'npt=now-'
         rtsp.do_pause()
     elif cmd == 'help':
         PRINT(play_ctrl_help())
     elif cmd == 'forward':
-        if CUR_SCALE < 0: CUR_SCALE = 1
-        CUR_SCALE *= 2; CUR_RANGE = 'npt=now-'
+        if rtsp.cur_scale < 0: rtsp.cur_scale = 1
+        rtsp.cur_scale *= 2; rtsp.cur_range = 'npt=now-'
     elif cmd == 'backward':
-        if CUR_SCALE > 0: CUR_SCALE = -1
-        CUR_SCALE *= 2; CUR_RANGE = 'npt=now-'
+        if rtsp.cur_scale > 0: rtsp.cur_scale = -1
+        rtsp.cur_scale *= 2; rtsp.cur_range = 'npt=now-'
     elif cmd == 'begin':
-        CUR_SCALE = 1; CUR_RANGE = 'npt=beginning-'
+        rtsp.cur_scale = 1; rtsp.cur_range = 'npt=beginning-'
     elif cmd == 'live':
-        CUR_SCALE = 1; CUR_RANGE = 'npt=end-'
+        rtsp.cur_scale = 1; rtsp.cur_range = 'npt=end-'
     elif cmd.startswith('play'):
         m = re.search(r'range[:\s]+(?P<range>[^\s]+)', cmd)
-        if m: CUR_RANGE = m.group('range')
+        if m: rtsp.cur_range = m.group('range')
         m = re.search(r'scale[:\s]+(?P<scale>[\d\.]+)', cmd)
-        if m: CUR_SCALE = int(m.group('scale'))
+        if m: rtsp.cur_scale = int(m.group('scale'))
 
     if cmd not in ('pause', 'exit', 'teardown', 'help'):
-        rtsp.do_play(CUR_RANGE, CUR_SCALE)
+        rtsp.do_play(rtsp.cur_range, rtsp.cur_scale)
 
 def main(url, options):
     rtsp = RTSPClient(url, options.dest_ip, callback=PRINT)
+
+    if options.transport:   rtsp.TRANSPORT_TYPE_LIST = options.transport.split(',')
+    if options.client_port: rtsp.CLIENT_PORT_RANGE = options.client_port
+    if options.nat:         rtsp.NAT_IP_PORT = options.nat
+    if options.arq:         rtsp.ENABLE_ARQ  = options.arq
+    if options.fec:         rtsp.ENABLE_FEC  = options.fec
 
     if options.ping:
         PRINT('PING START', YELLOW)
@@ -553,13 +556,6 @@ if __name__ == '__main__':
     if len(args) < 1:
         parser.print_help()
         sys.exit()
-
-    if options.transport:   TRANSPORT_TYPE_LIST = options.transport.split(',')
-    if options.client_port: CLIENT_PORT_RANGE = options.client_port
-    if options.nat:         NAT_IP_PORT = options.nat
-    if options.arq:         ENABLE_ARQ  = options.arq
-    if options.fec:         ENABLE_FEC  = options.fec
-    if options.ping:        PING  = options.ping
 
     url = args[0]
 
