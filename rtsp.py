@@ -2,7 +2,7 @@
 #-*- coding: UTF-8 -*-
 # Date: 2015-04-09
 #
-# Stolen here: https://github.com/js2854/python-rtsp-client
+# Original project here: https://github.com/js2854/python-rtsp-client
 # Some text google-translated from Chinese
 # A bit adopted to be import'able
 # -jno
@@ -12,7 +12,6 @@
 
 import ast, datetime, re, socket, sys, threading, time, traceback
 from hashlib import md5
-from optparse import OptionParser
 try:
     from urllib.parse import urlparse
 except ImportError:
@@ -27,10 +26,10 @@ ENABLE_FEC          = False
 PING                = False
 
 TRANSPORT_TYPE_MAP  = {
-                        'ts_over_tcp'   :   'MP2T/TCP;%s;interleaved=0-1, ',
-                        'rtp_over_tcp'  :   'MP2T/RTP/TCP;%s;interleaved=0-1, ',
-                        'ts_over_udp'   :   'MP2T/UDP;%s;destination=%s;client_port=%s, ',
-                        'rtp_over_udp'  :   'MP2T/RTP/UDP;%s;destination=%s;client_port=%s, '
+            'ts_over_tcp'  : 'MP2T/TCP;%s;interleaved=0-1, ',
+            'rtp_over_tcp' : 'MP2T/RTP/TCP;%s;interleaved=0-1, ',
+            'ts_over_udp'  : 'MP2T/UDP;%s;destination=%s;client_port=%s, ',
+            'rtp_over_udp' : 'MP2T/RTP/UDP;%s;destination=%s;client_port=%s, '
                       }
 
 RTSP_VERSION        = 'RTSP/1.0'
@@ -78,7 +77,6 @@ class RTSPClient(threading.Thread):
         self.location     = ''
         self.response_buf = []
         self.response     = None
-        #self._scheme, self._server_ip, self._server_port, self._target = self._parse_url(url)
         self._parsed_url  = self._parse_url(url)
         self._server_port = self._parsed_url.port or DEFAULT_SERVER_PORT
         self._orig_url    = self._parsed_url.scheme + "://" + \
@@ -148,10 +146,12 @@ class RTSPClient(threading.Thread):
         if not scheme:
             raise RTSPURLError('Bad URL "%s"' % url)
         if scheme not in ('rtsp',): # 'rtspu'):
-            raise RTSPURLError('Unsupported scheme "%s" in URL "%s"' % (scheme, url))
+            raise RTSPURLError('Unsupported scheme "%s" \
+                                in URL "%s"' % (scheme, url))
         if not ip or not target:
-            raise RTSPURLError('Invalid url: %s (host="%s" port=%u target="%s")' %
-                            (url, ip, port, target))
+            raise RTSPURLError('Invalid url: %s (host="%s" \
+                                port=%u target="%s")' %
+                                (url, ip, port, target))
         #return scheme, ip, port, target
         return parsed
 
@@ -161,16 +161,19 @@ class RTSPClient(threading.Thread):
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._sock.connect((self._parsed_url.hostname, self._server_port))
         except socket.error as e:
-            raise RTSPNetError('socket error: %s [%s:%d]' % (e, self._parsed_url.hostname, self._server_port))
+            raise RTSPNetError('socket error: %s [%s:%d]' % 
+                            (e, self._parsed_url.hostname, self._server_port))
 
     def _update_dest_ip(self):
-        '''If DEST_IP is not specified, the same IP is used by default with RTSP'''
+        '''If DEST_IP is not specified, 
+           the same IP is used by default with RTSP'''
         if not self._dest_ip:
             self._dest_ip = self._sock.getsockname()[0]
             PRINT('DEST_IP: %s\n' % self._dest_ip, CYAN)
 
     def recv_msg(self):
-        '''A complete response message or an ANNOUNCE notification message is received'''
+        '''A complete response message or 
+           an ANNOUNCE notification message is received'''
         try:
             while not (not self.running or HEADER_END_STR in self.cache()):
                 more = self._sock.recv(2048)
@@ -190,8 +193,10 @@ class RTSPClient(threading.Thread):
         return msg
 
     def _add_auth(self, msg):
-        '''Authentication request string, everything after www-authentication'''
-        #TODO: this is too simplistic and will fail if more than one method is acceptable, among other issues
+        '''Authentication request string, 
+           everything after www-authentication'''
+        #TODO: this is too simplistic and will fail if more than one method
+        #       is acceptable, among other issues
         if msg.lower().startswith('basic'):
             pass
         elif msg.lower().startswith('digest '):
@@ -218,14 +223,17 @@ class RTSPClient(threading.Thread):
             raise RTSPError('Authentication failure')
 
     def _auth_digest(self, auth_parameters):
-        '''Creates a response string for digest authorization, only works with MD5 at the moment'''
+        '''Creates a response string for digest authorization, only works
+           with MD5 at the moment'''
         #TODO expand to more than MD5
         if self._parsed_url.username:
             HA1 = md5("{}:{}:{}".format(self._parsed_url.username,
                                         auth_parameters['realm'],
-                                        self._parsed_url.password).encode()).hexdigest()
+                                        self._parsed_url.password).encode()
+                                        ).hexdigest()
             HA2 = md5("{}:{}".format(self._cseq_map[self._cseq],
-                                     self._parsed_url.path).encode()).hexdigest()
+                                     self._parsed_url.path).encode()
+                                     ).hexdigest()
             response = md5("{}:{}:{}".format(HA1,
                                              auth_parameters['nonce'],
                                              HA2).encode()).hexdigest()
@@ -331,14 +339,17 @@ class RTSPClient(threading.Thread):
     def _get_transport_type(self):
         '''The Transport string parameter that is required to get SETUP'''
         transport_str = ''
-        ip_type = 'unicast' #if IPAddress(DEST_IP).is_unicast() else 'multicast'
+        ip_type = 'unicast' #TODO: if IPAddress(DEST_IP).is_unicast() 
+                            #      else 'multicast'
         for t in TRANSPORT_TYPE_LIST:
             if t not in TRANSPORT_TYPE_MAP:
                 raise RTSPError('Error param: %s' % t)
             if t.endswith('tcp'):
                 transport_str += TRANSPORT_TYPE_MAP[t]%ip_type
             else:
-                transport_str += TRANSPORT_TYPE_MAP[t]%(ip_type, self._dest_ip, CLIENT_PORT_RANGE)
+                transport_str += TRANSPORT_TYPE_MAP[t]%(ip_type, 
+                                                        self._dest_ip, 
+                                                        CLIENT_PORT_RANGE)
         return transport_str
 
     def do_describe(self, headers={}):
@@ -406,7 +417,8 @@ class RTSPClient(threading.Thread):
         '''Timed sending GET_PARAMETER message keep alive'''
         if not self.running:
             self.do_get_parameter()
-            threading.Timer(HEARTBEAT_INTERVAL, self.send_heart_beat_msg).start()
+            threading.Timer(HEARTBEAT_INTERVAL, 
+                            self.send_heart_beat_msg).start()
 
     def ping(self, timeout=0.01):
         '''No exceptions == service available'''
@@ -419,6 +431,7 @@ class RTSPClient(threading.Thread):
 # Input with autocompletion
 #-----------------------------------------------------------------------
 import readline
+from optparse import OptionParser
 COMMANDS = (
         'backward',
         'begin',
@@ -501,26 +514,31 @@ def main(url, dest_ip):
         print('\n^C received, Exit.')
 
 def play_ctrl_help():
-    help = COLOR_STR('In running, you can control play by input "' \
-                    +'forward", "backward", "begin", "live", "pause"\n', MAGENTA)
-    help += COLOR_STR('or "play" with "range" and "scale" parameter, ' \
-                     +'such as "play range:npt=beginning- scale:2"\n', MAGENTA)
-    help += COLOR_STR('You can input "exit", "teardown" or ctrl+c to quit\n', MAGENTA)
+    help = COLOR_STR('In running, you can control play by input "forward"' \
+                    +', "backward", "begin", "live", "pause"\n', MAGENTA)
+    help += COLOR_STR('or "play" with "range" and "scale" parameter, such ' \
+                     +'as "play range:npt=beginning- scale:2"\n', MAGENTA)
+    help += COLOR_STR('You can input "exit", "teardown" or ctrl+c to ' \
+                     +'quit\n', MAGENTA)
     return help
 
 if __name__ == '__main__':
     usage = COLOR_STR('%prog [options] url\n\n', GREEN) + play_ctrl_help()
 
     parser = OptionParser(usage=usage)
-    parser.add_option('-t', '--transport', dest='transport', default='rtp_over_udp',
-                      help='Set transport type when SETUP: ts_over_tcp, ts_over_udp, '
-                          +' rtp_over_tcp, rtp_over_udp [default]')
+    parser.add_option('-t', '--transport', dest='transport', 
+                      default='rtp_over_udp',
+                      help='Set transport type when SETUP: ts_over_tcp, '
+                          +'ts_over_udp, rtp_over_tcp, rtp_over_udp[default]')
     parser.add_option('-d', '--dest_ip', dest='dest_ip',
-                      help='Set dest ip of udp data transmission, default use same ip with rtsp')
+                      help='Set dest ip of udp data transmission, default '
+                          +'use same ip with rtsp')
     parser.add_option('-p', '--client_port', dest='client_port',
-                      help='Set client port range when SETUP of udp, default is "10014-10015"')
+                      help='Set client port range when SETUP of udp, default '
+                          +'is "10014-10015"')
     parser.add_option('-n', '--nat', dest='nat',
-                      help='Add "x-NAT" when DESCRIBE, arg format "192.168.1.100:20008"')
+                      help='Add "x-NAT" when DESCRIBE, arg format '
+                          +'"192.168.1.100:20008"')
     parser.add_option('-r', '--arq', dest='arq', action="store_true",
                       help='Add "x-Retrans:yes" when DESCRIBE')
     parser.add_option('-f', '--fec', dest='fec', action="store_true",
