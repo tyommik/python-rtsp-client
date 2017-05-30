@@ -7,7 +7,8 @@
 # A bit adopted to be import'able
 # -jno
 #
-#Ported to Python3, removed GoodThread
+# Date: 2017-05-30
+# Ported to Python3, removed GoodThread
 # -killian441
 
 import ast, datetime, re, socket, sys, threading, time, traceback
@@ -63,26 +64,27 @@ class RTSPURLError(RTSPError): pass
 class RTSPNetError(RTSPError): pass
 
 class RTSPClient(threading.Thread):
-    def __init__(self, url, dest_ip=''):
+    def __init__(self, url, dest_ip='', callback=None):
         global CUR_RANGE
         threading.Thread.__init__(self)
         self._auth        = None
-        self._sock        = None
+        self._callback    = callback or (lambda x: x)
         self._cseq        = 0
-        self._session_id  = ''
         self._cseq_map    = {} # {CSeq:Method} mapping
         self._dest_ip     = dest_ip
-        self.running      = True
-        self.playing      = False
-        self.location     = ''
-        self.response_buf = []
-        self.response     = None
         self._parsed_url  = self._parse_url(url)
         self._server_port = self._parsed_url.port or DEFAULT_SERVER_PORT
         self._orig_url    = self._parsed_url.scheme + "://" + \
                             self._parsed_url.hostname + \
                             ":" + str(self._server_port) + \
                             self._parsed_url.path
+        self._session_id  = ''
+        self._sock        = None
+        self.location     = ''
+        self.playing      = False
+        self.response     = None
+        self.response_buf = []
+        self.running      = True
         if '.sdp' not in self._parsed_url.path.lower():
             CUR_RANGE = 'npt=0.00000-' # On demand starts from the beginning
         self._connect_server()
@@ -169,7 +171,7 @@ class RTSPClient(threading.Thread):
            the same IP is used by default with RTSP'''
         if not self._dest_ip:
             self._dest_ip = self._sock.getsockname()[0]
-            PRINT('DEST_IP: %s\n' % self._dest_ip, CYAN)
+            self._callback('DEST_IP: %s\n' % self._dest_ip)
 
     def recv_msg(self):
         '''A complete response message or 
@@ -258,11 +260,10 @@ class RTSPClient(threading.Thread):
         status, headers, body = self._parse_response(msg)
         rsp_cseq = int(headers['cseq'])
         if self._cseq_map[rsp_cseq] != 'GET_PARAMETER':
-            PRINT(self._get_time_str() + '\n' + msg)
+            self._callback(self._get_time_str() + '\n' + msg)
         if status == 401 and not self._auth:
             self._add_auth(headers['www-authenticate'])
             self.do_replay_request()
-            #self.do_teardown()
         elif status == 302:
             self.location = headers['location']
         elif status != 200:
@@ -280,7 +281,7 @@ class RTSPClient(threading.Thread):
     def _process_announce(self, msg):
         '''Processes the ANNOUNCE notification message'''
         global CUR_RANGE, CUR_SCALE
-        PRINT(msg)
+        self._callback(msg)
         headers = self._parse_header_params(msg.splitlines()[1:])
         x_notice_val = int(headers['x-notice'])
         if x_notice_val in (X_NOTICE_EOS, X_NOTICE_BOS):
@@ -329,11 +330,11 @@ class RTSPClient(threading.Thread):
             msg += END_OF_LINE + '%s: %s'%(k, str(v))
         msg += HEADER_END_STR # End headers
         if method != 'GET_PARAMETER' or 'x-RetransSeq' in headers:
-            PRINT(self._get_time_str() + END_OF_LINE + msg)
+            self._callback(self._get_time_str() + END_OF_LINE + msg)
         try:
             self._sock.send(msg.encode())
         except socket.error as e:
-            PRINT('Send msg error: %s'%e, RED)
+            self._callback('Send msg error: %s'%e)
             raise RTSPNetError(e)
 
     def _get_transport_type(self):
@@ -489,7 +490,7 @@ def exec_cmd(rtsp, cmd):
         rtsp.do_play(CUR_RANGE, CUR_SCALE)
 
 def main(url, dest_ip):
-    rtsp = RTSPClient(url, dest_ip)
+    rtsp = RTSPClient(url, dest_ip, callback=PRINT)
 
     if PING:
         PRINT('PING START', YELLOW)
