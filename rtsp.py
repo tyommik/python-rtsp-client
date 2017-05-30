@@ -11,20 +11,12 @@
 # Ported to Python3, removed GoodThread
 # -killian441
 
-import ast, datetime, re, socket, sys, threading, time, traceback
+import ast, datetime, re, socket, threading, time, traceback
 from hashlib import md5
 try:
     from urllib.parse import urlparse
 except ImportError:
     from urlparse import urlparse # for python < 3.0
-
-DEFAULT_SERVER_PORT = 554
-TRANSPORT_TYPE_LIST = []
-CLIENT_PORT_RANGE   = '10014-10015'
-NAT_IP_PORT         = ''
-ENABLE_ARQ          = False
-ENABLE_FEC          = False
-PING                = False
 
 TRANSPORT_TYPE_MAP  = {
             'ts_over_tcp'  : 'MP2T/TCP;%s;interleaved=0-1, ',
@@ -35,29 +27,23 @@ TRANSPORT_TYPE_MAP  = {
 
 RTSP_VERSION        = 'RTSP/1.0'
 DEFAULT_USERAGENT   = 'Python Rtsp Client 1.0'
-HEARTBEAT_INTERVAL  = 10 # 10s
-
+DEFAULT_SERVER_PORT = 554
 END_OF_LINE         = '\r\n'
 HEADER_END_STR      = END_OF_LINE*2
-
-CUR_RANGE           = 'npt=end-'
-CUR_SCALE           = 1
 
 #x-notice in ANNOUNCE, BOS-Begin of Stream, EOS-End of Stream
 X_NOTICE_EOS, X_NOTICE_BOS, X_NOTICE_CLOSE = 2101, 2102, 2103
 
-#--------------------------------------------------------------------------
-# Colored Output in Console
-#--------------------------------------------------------------------------
-DEBUG = False
-BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA,CYAN,WHITE = list(range(90, 98))
-def COLOR_STR(msg, color=WHITE):
-    return '\033[%dm%s\033[0m'%(color, msg)
-
-def PRINT(msg, color=WHITE, out=sys.stdout):
-    if DEBUG and out.isatty() :
-        out.write(COLOR_STR(msg, color) + '\n')
-#--------------------------------------------------------------------------
+#### Variables ####
+CUR_RANGE           = 'npt=end-'
+CUR_SCALE           = 1
+TRANSPORT_TYPE_LIST = []
+NAT_IP_PORT         = ''
+ENABLE_ARQ          = False
+ENABLE_FEC          = False
+PING                = False
+HEARTBEAT_INTERVAL  = 10 # 10s
+CLIENT_PORT_RANGE   = '10014-10015'
 
 class RTSPError(Exception): pass
 class RTSPURLError(RTSPError): pass
@@ -431,7 +417,7 @@ class RTSPClient(threading.Thread):
 #-----------------------------------------------------------------------
 # Input with autocompletion
 #-----------------------------------------------------------------------
-import readline
+import readline, sys
 from optparse import OptionParser
 COMMANDS = (
         'backward',
@@ -455,10 +441,26 @@ def input_cmd():
     readline.set_completer_delims(' \t\n')
     readline.parse_and_bind("tab: complete")
     readline.set_completer(complete)
-    cmd = input(COLOR_STR('Input Command # ', CYAN))
+    if(sys.version_info > (3, 0)):
+        cmd = input(COLOR_STR('Input Command # ', CYAN))
+    else:
+        cmd = raw_input(COLOR_STR('Input Command # ', CYAN))
     PRINT('') # add one line
     return cmd
 #-----------------------------------------------------------------------
+
+#--------------------------------------------------------------------------
+# Colored Output in Console
+#--------------------------------------------------------------------------
+DEBUG = False
+BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA,CYAN,WHITE = list(range(90, 98))
+def COLOR_STR(msg, color=WHITE):
+    return '\033[%dm%s\033[0m'%(color, msg)
+
+def PRINT(msg, color=WHITE, out=sys.stdout):
+    if DEBUG and out.isatty() :
+        out.write(COLOR_STR(msg, color) + '\n')
+#--------------------------------------------------------------------------
 
 def exec_cmd(rtsp, cmd):
     '''Execute the operation according to the command'''
@@ -489,10 +491,10 @@ def exec_cmd(rtsp, cmd):
     if cmd not in ('pause', 'exit', 'teardown', 'help'):
         rtsp.do_play(CUR_RANGE, CUR_SCALE)
 
-def main(url, dest_ip):
-    rtsp = RTSPClient(url, dest_ip, callback=PRINT)
+def main(url, options):
+    rtsp = RTSPClient(url, options.dest_ip, callback=PRINT)
 
-    if PING:
+    if options.ping:
         PRINT('PING START', YELLOW)
         rtsp.ping()
         PRINT('PING DONE', YELLOW)
@@ -562,5 +564,5 @@ if __name__ == '__main__':
     url = args[0]
 
     DEBUG = True
-    main(url, options.dest_ip)
+    main(url, options)
 # EOF #
