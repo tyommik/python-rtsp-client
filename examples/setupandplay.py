@@ -97,7 +97,7 @@ def main(url, options):
         myrtsp.do_describe()
         while myrtsp.state != 'describe':
             time.sleep(0.1)
-        myrtsp.do_setup(myrtsp.track_id_str)
+        myrtsp.do_setup(0)
         while myrtsp.state != 'setup':
             time.sleep(0.1)
         myrtsp.do_play(myrtsp.cur_range, myrtsp.cur_scale)

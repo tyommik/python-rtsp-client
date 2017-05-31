@@ -68,7 +68,7 @@ class RTSPClient(threading.Thread):
         self.response_buf = []
         self.running      = True
         self.state        = None
-        self.track_id_str = ''
+        self.track_id_lst = []
         if '.sdp' not in self._parsed_url.path.lower():
             self.cur_range = 'npt=0.00000-' # On demand starts from the beginning
         self._connect_server()
@@ -261,12 +261,10 @@ class RTSPClient(threading.Thread):
             self.do_teardown()
         elif self._cseq_map[rsp_cseq] == 'DESCRIBE': #Implies status 200
             self._update_content_base(msg)
-            self.track_id_str = self._parse_track_id(body)
-            #self.do_setup(track_id_str)
+            self._parse_track_id(body)
             self.state = 'describe'
         elif self._cseq_map[rsp_cseq] == 'SETUP':
             self._session_id = headers['session']
-            #self.do_play(self.cur_range, self.cur_scale)
             self.send_heart_beat_msg()
             self.state = 'setup'
         elif self._cseq_map[rsp_cseq] == 'PLAY':
@@ -302,8 +300,8 @@ class RTSPClient(threading.Thread):
 
     def _parse_track_id(self, sdp):
         '''Resolves a string of the form trackID = 2 from sdp'''
-        m = re.search(r'a=control:(?P<trackid>[\w=\d]+)', sdp, re.S)
-        return m and m.group('trackid') or ''
+        m = re.findall(r'a=control:(?P<trackid>[\w=\d]+)', sdp, re.S)
+        self.track_id_lst = m
 
     def _next_seq(self):
         self._cseq += 1
@@ -359,11 +357,23 @@ class RTSPClient(threading.Thread):
             headers['x-NAT'] = self.NAT_IP_PORT
         self._sendmsg('DESCRIBE', self._orig_url, headers)
 
-    def do_setup(self, track_id_str='', headers={}):
+    def do_setup(self, track_id_str=None, headers={}):
         if self._auth:
             headers['Authorization'] = self._auth
         headers['Transport'] = self._get_transport_type()
-        self._sendmsg('SETUP', self._orig_url+'/'+track_id_str, headers)
+        #TODO: Currently issues SETUP for all tracks but doesn't keep track 
+        # of them or end all of them.
+        if isinstance(track_id_str,str):
+            self._sendmsg('SETUP', self._orig_url+'/'+track_id_str, headers)
+        elif isinstance(track_id_str, int):
+            self._sendmsg('SETUP', self._orig_url +
+                                   '/' +
+                                   self.track_id_lst[track_id_str], headers)
+        elif self.track_id_lst:
+            for track in self.track_id_lst:
+                self._sendmsg('SETUP', self._orig_url+'/'+track, headers)
+        else:
+            self._sendmsg('SETUP', self._orig_url, headers)
 
     def do_play(self, range='npt=end-', scale=1, headers={}):
         if self._auth:
