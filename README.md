@@ -9,14 +9,14 @@ Getting Started
     from rtsp import RTSPClient
     myrtsp = RTSPClient(url='rtsp://username:password@hostname:port/path',callback=print)
     try:
-        rtsp.do_describe()
-        while rtsp.state != 'describe':
+        myrtsp.do_describe()
+        while myrtsp.state != 'describe':
             time.sleep(0.1)
-        rtsp.do_setup(rtsp.track_id_str)
-        while rtsp.state != 'setup':
+        myrtsp.do_setup(rtsp.track_id_str)
+        while myrtsp.state != 'setup':
             time.sleep(0.1)
         #Open socket to capture frames here
-        rtsp.do_play(rtsp.cur_range, rtsp.cur_scale)
+        myrtsp.do_play(rtsp.cur_range, rtsp.cur_scale)
     except:
         myrtsp.do_teardown()
 

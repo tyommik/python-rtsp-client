@@ -1,4 +1,4 @@
-
+#!/usr/bin/python
 #-----------------------------------------------------------------------
 # Input with autocompletion
 #-----------------------------------------------------------------------
@@ -49,69 +49,69 @@ def PRINT(msg, color=WHITE, out=sys.stdout):
         out.write(COLOR_STR(msg, color) + '\n')
 #--------------------------------------------------------------------------
 
-def exec_cmd(rtsp, cmd):
+def exec_cmd(myrtsp, cmd):
     '''Execute the operation according to the command'''
     if cmd in ('exit', 'teardown'):
-        rtsp.do_teardown()
+        myrtsp.do_teardown()
     elif cmd == 'pause':
-        rtsp.cur_scale = 1; rtsp.cur_range = 'npt=now-'
-        rtsp.do_pause()
+        myrtsp.cur_scale = 1; myrtsp.cur_range = 'npt=now-'
+        myrtsp.do_pause()
     elif cmd == 'help':
         PRINT(play_ctrl_help())
     elif cmd == 'forward':
-        if rtsp.cur_scale < 0: rtsp.cur_scale = 1
-        rtsp.cur_scale *= 2; rtsp.cur_range = 'npt=now-'
+        if myrtsp.cur_scale < 0: myrtsp.cur_scale = 1
+        myrtsp.cur_scale *= 2; myrtsp.cur_range = 'npt=now-'
     elif cmd == 'backward':
-        if rtsp.cur_scale > 0: rtsp.cur_scale = -1
-        rtsp.cur_scale *= 2; rtsp.cur_range = 'npt=now-'
+        if myrtsp.cur_scale > 0: myrtsp.cur_scale = -1
+        myrtsp.cur_scale *= 2; myrtsp.cur_range = 'npt=now-'
     elif cmd == 'begin':
-        rtsp.cur_scale = 1; rtsp.cur_range = 'npt=beginning-'
+        myrtsp.cur_scale = 1; myrtsp.cur_range = 'npt=beginning-'
     elif cmd == 'live':
-        rtsp.cur_scale = 1; rtsp.cur_range = 'npt=end-'
+        myrtsp.cur_scale = 1; myrtsp.cur_range = 'npt=end-'
     elif cmd.startswith('play'):
         m = re.search(r'range[:\s]+(?P<range>[^\s]+)', cmd)
-        if m: rtsp.cur_range = m.group('range')
+        if m: myrtsp.cur_range = m.group('range')
         m = re.search(r'scale[:\s]+(?P<scale>[\d\.]+)', cmd)
-        if m: rtsp.cur_scale = int(m.group('scale'))
+        if m: myrtsp.cur_scale = int(m.group('scale'))
 
     if cmd not in ('pause', 'exit', 'teardown', 'help'):
-        rtsp.do_play(rtsp.cur_range, rtsp.cur_scale)
+        myrtsp.do_play(myrtsp.cur_range, myrtsp.cur_scale)
 
 def main(url, options):
-    rtsp = RTSPClient(url, options.dest_ip, callback=PRINT)
+    myrtsp = RTSPClient(url, options.dest_ip, callback=PRINT)
 
-    if options.transport:   rtsp.TRANSPORT_TYPE_LIST = options.transport.split(',')
-    if options.client_port: rtsp.CLIENT_PORT_RANGE = options.client_port
-    if options.nat:         rtsp.NAT_IP_PORT = options.nat
-    if options.arq:         rtsp.ENABLE_ARQ  = options.arq
-    if options.fec:         rtsp.ENABLE_FEC  = options.fec
+    if options.transport:   myrtsp.TRANSPORT_TYPE_LIST = options.transport.split(',')
+    if options.client_port: myrtsp.CLIENT_PORT_RANGE = options.client_port
+    if options.nat:         myrtsp.NAT_IP_PORT = options.nat
+    if options.arq:         myrtsp.ENABLE_ARQ  = options.arq
+    if options.fec:         myrtsp.ENABLE_FEC  = options.fec
 
     if options.ping:
         PRINT('PING START', YELLOW)
-        rtsp.ping(0.1)
+        myrtsp.ping(0.1)
         PRINT('PING DONE', YELLOW)
         sys.exit(0)
         return
 
     try:
-        rtsp.do_describe()
-        while rtsp.state != 'describe':
+        myrtsp.do_describe()
+        while myrtsp.state != 'describe':
             time.sleep(0.1)
-        rtsp.do_setup(rtsp.track_id_str)
-        while rtsp.state != 'setup':
+        myrtsp.do_setup(myrtsp.track_id_str)
+        while myrtsp.state != 'setup':
             time.sleep(0.1)
-        rtsp.do_play(rtsp.cur_range, rtsp.cur_scale)
-        while rtsp.running:
-            if rtsp.state == 'play':
+        myrtsp.do_play(myrtsp.cur_range, myrtsp.cur_scale)
+        while myrtsp.running:
+            if myrtsp.state == 'play':
                 cmd = input_cmd()
-                exec_cmd(rtsp, cmd)
+                exec_cmd(myrtsp, cmd)
             # 302 redirect to re-establish chain
-            if rtsp.location:
-                rtsp = RTSPClient(rtsp.location)
-                rtsp.do_describe()
+            if myrtsp.location:
+                myrtsp = RTSPClient(myrtsp.location)
+                myrtsp.do_describe()
             time.sleep(0.5)
     except KeyboardInterrupt:
-        rtsp.do_teardown()
+        myrtsp.do_teardown()
         print('\n^C received, Exit.')
 
 def play_ctrl_help():

@@ -149,6 +149,14 @@ class RTSPClient(threading.Thread):
             raise RTSPNetError('socket error: %s [%s:%d]' % 
                             (e, self._parsed_url.hostname, self._server_port))
 
+    def _update_content_base(self, msg):
+        m = re.search(r'[Cc]ontent-[Bb]ase:\s?(?P<base>[a-zA-Z0-9_:\/\.]+)', msg)
+        if (m and m.group('base')):
+            new_url = m.group('base')
+            if new_url[-1] == '/':
+                new_url = new_url[:-1]
+            self._orig_url = new_url
+
     def _update_dest_ip(self):
         '''If DEST_IP is not specified, 
            by default the same IP is used as this RTSP client'''
@@ -252,6 +260,7 @@ class RTSPClient(threading.Thread):
         elif status != 200:
             self.do_teardown()
         elif self._cseq_map[rsp_cseq] == 'DESCRIBE': #Implies status 200
+            self._update_content_base(msg)
             self.track_id_str = self._parse_track_id(body)
             #self.do_setup(track_id_str)
             self.state = 'describe'
