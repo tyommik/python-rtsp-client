@@ -95,12 +95,18 @@ def main(url, options):
 
     try:
         rtsp.do_describe()
+        while rtsp.state != 'describe':
+            time.sleep(0.1)
+        rtsp.do_setup(rtsp.track_id_str)
+        while rtsp.state != 'setup':
+            time.sleep(0.1)
+        rtsp.do_play(rtsp.cur_range, rtsp.cur_scale)
         while rtsp.running:
-            if rtsp.playing:
+            if rtsp.state == 'play':
                 cmd = input_cmd()
                 exec_cmd(rtsp, cmd)
             # 302 redirect to re-establish chain
-            if not rtsp.running and rtsp.location:
+            if rtsp.location:
                 rtsp = RTSPClient(rtsp.location)
                 rtsp.do_describe()
             time.sleep(0.5)

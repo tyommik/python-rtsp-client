@@ -64,10 +64,11 @@ class RTSPClient(threading.Thread):
         self.cur_range    = 'npt=end-'
         self.cur_scale    = 1
         self.location     = ''
-        self.playing      = False
         self.response     = None
         self.response_buf = []
         self.running      = True
+        self.state        = None
+        self.track_id_str = ''
         if '.sdp' not in self._parsed_url.path.lower():
             self.cur_range = 'npt=0.00000-' # On demand starts from the beginning
         self._connect_server()
@@ -98,9 +99,9 @@ class RTSPClient(threading.Thread):
 
     def close(self):
         if not self.closed:
-            self.closed = True
+            self.closed  = True
             self.running = False
-            self.playing = False
+            self.state   = 'closed'
             self._sock.close()
 
     def run(self):
@@ -251,14 +252,16 @@ class RTSPClient(threading.Thread):
         elif status != 200:
             self.do_teardown()
         elif self._cseq_map[rsp_cseq] == 'DESCRIBE': #Implies status 200
-            track_id_str = self._parse_track_id(body)
-            self.do_setup(track_id_str)
+            self.track_id_str = self._parse_track_id(body)
+            #self.do_setup(track_id_str)
+            self.state = 'describe'
         elif self._cseq_map[rsp_cseq] == 'SETUP':
             self._session_id = headers['session']
-            self.do_play(self.cur_range, self.cur_scale)
+            #self.do_play(self.cur_range, self.cur_scale)
             self.send_heart_beat_msg()
+            self.state = 'setup'
         elif self._cseq_map[rsp_cseq] == 'PLAY':
-            self.playing = True
+            self.state = 'play'
 
     def _process_announce(self, msg):
         '''Processes the ANNOUNCE notification message'''
