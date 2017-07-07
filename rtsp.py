@@ -362,7 +362,7 @@ class RTSPClient(threading.Thread):
             headers['Authorization'] = self._auth
         headers['Transport'] = self._get_transport_type()
         #TODO: Currently issues SETUP for all tracks but doesn't keep track 
-        # of them or end all of them.
+        # of all sessions or teardown all of them.
         if isinstance(track_id_str,str):
             self._sendmsg('SETUP', self._orig_url+'/'+track_id_str, headers)
         elif isinstance(track_id_str, int):
