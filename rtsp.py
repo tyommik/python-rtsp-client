@@ -46,7 +46,7 @@ class RTSPClient(threading.Thread):
     HEARTBEAT_INTERVAL  = 10 # 10s
     CLIENT_PORT_RANGE   = '10014-10015'
 
-    def __init__(self, url, dest_ip='', callback=None):
+    def __init__(self, url, dest_ip='', callback=None, socks=None):
         threading.Thread.__init__(self)
         self._auth        = None
         self._callback    = callback or (lambda x: x)
@@ -61,6 +61,7 @@ class RTSPClient(threading.Thread):
                             self._parsed_url.path
         self._session_id  = ''
         self._sock        = None
+        self._socks        = socks
         self.cur_range    = 'npt=end-'
         self.cur_scale    = 1
         self.location     = ''
@@ -143,7 +144,7 @@ class RTSPClient(threading.Thread):
     def _connect_server(self):
         '''Connect to the server and create a socket'''
         try:
-            self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._sock = self._socks or socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._sock.connect((self._parsed_url.hostname, self._server_port))
         except socket.error as e:
             raise RTSPNetError('socket error: %s [%s:%d]' % 
