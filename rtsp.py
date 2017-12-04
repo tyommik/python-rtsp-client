@@ -151,7 +151,7 @@ class RTSPClient(threading.Thread):
                             (e, self._parsed_url.hostname, self._server_port))
 
     def _update_content_base(self, msg):
-        m = re.search(r'[Cc]ontent-[Bb]ase:\s?(?P<base>[a-zA-Z0-9_:\/\.]+)', msg)
+        m = re.search(r'[Cc]ontent-[Bb]ase:\s?(?P<base>[a-zA-Z0-9_:\/\.-]+)', msg)
         if (m and m.group('base')):
             new_url = m.group('base')
             if new_url[-1] == '/':
@@ -366,7 +366,7 @@ class RTSPClient(threading.Thread):
         if self._auth:
             headers['Authorization'] = self._auth
         headers['Transport'] = self._get_transport_type()
-        #TODO: Currently issues SETUP for all tracks but doesn't keep track 
+        # TODO: Currently issues SETUP for all tracks but doesn't keep track
         # of all sessions or teardown all of them.
         if isinstance(track_id_str,str):
             self._sendmsg('SETUP', self._orig_url+'/'+track_id_str, headers)
