@@ -11,7 +11,13 @@
 # Ported to Python3, removed GoodThread
 # -killian441
 
-import ast, datetime, re, socket, threading, time, traceback
+import ast
+import datetime
+import re
+import socket
+import threading
+import time
+import traceback
 from hashlib import md5
 try:
     from urllib.parse import urlparse
@@ -262,6 +268,9 @@ class RTSPClient(threading.Thread):
             self.do_replay_request()
         elif status == 302:
             self.location = headers['location']
+        # Method Not Allowed
+        elif status == 405:
+            pass
         elif status != 200:
             self.do_teardown()
         elif self._cseq_map[rsp_cseq] == 'DESCRIBE': #Implies status 200
@@ -269,7 +278,9 @@ class RTSPClient(threading.Thread):
             self._parse_track_id(body)
             self.state = 'describe'
         elif self._cseq_map[rsp_cseq] == 'SETUP':
-            self._session_id = headers['session']
+            session_match = re.findall(r'^[A-Z,0-9]{6,}' ,headers['session'] )
+            if session_match:
+                self._session_id = session_match[0]
             self.send_heart_beat_msg()
             self.state = 'setup'
         elif self._cseq_map[rsp_cseq] == 'PLAY':
@@ -347,6 +358,7 @@ class RTSPClient(threading.Thread):
                 transport_str +=TRANSPORT_TYPE_MAP[t]%(ip_type, 
                                                        self._dest_ip, 
                                                        self.CLIENT_PORT_RANGE)
+        transport_str = 'RTP/AVP;unicast;client_port=63004-63005'
         return transport_str
 
     def do_describe(self, headers={}):
